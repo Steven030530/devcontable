@@ -1,0 +1,11 @@
+
+# files
+data/
+.venv
+
+# enviroments
+.env
+
+# jupyter notebooks
+test.ipynb
+
