@@ -18,7 +18,7 @@ class Contable:
             self.company = input('Elige una empresa para iniciar variables (IEO - JCZ): ')
             if self.company not in ['IEO', 'JCZ']:
                 raise ValueError                
-            
+
             if self.company == 'IEO':
                 self.cuenta_ingreso = "413554"
                 self.name_company = "IEO SAS JULIAN"
@@ -26,6 +26,7 @@ class Contable:
                 self.cuenta_iva_generado = "24080101"
                 self.cuenta_costo = "613554"
                 self.cuenta_iva_descontable = "24080201"
+                self.nit_company = 901211276
             elif self.company == 'JCZ':
                 self.cuenta_ingreso = "413010"
                 self.name_company = "JCZ CONSTRUCCIONES"
@@ -33,6 +34,7 @@ class Contable:
                 self.cuenta_iva_generado = "24080110"
                 self.cuenta_costo = "613501"
                 self.cuenta_iva_descontable = "24080201"
+                self.nit_company = 901365790
         except ValueError:
             logging.error('No selecciono una empresa adecuada')
 
@@ -41,7 +43,7 @@ class Contable:
         '''Agregar data1 el Movimiento del mes y en la variable
         data2 agregar el formato de migración WO'''
         # Crear columna Subtotal
-        
+
         data1["SUBTOTAL"] = data1["Total"] - data1["IVA"]
         facturas = pd.DataFrame(columns=data2.columns)
         # Filtramos dataset por las facturas electronicas emitidas
@@ -93,16 +95,16 @@ class Contable:
             # Creamos un consecutivo en el prefijo para que la importacion no arroje inconsistencias
             facturas["Encab: Prefijo"] = [i+1 for i in range(len(facturas["Encab: Tipo Documento"]))]
             logging.info("Los datos fueron transformados exitosamente")
-            
+
             return facturas
-        
+
         except Exception as e:
             logging.error(f'Fallo la creacion del archivo plano de facturas de venta: {e}')
 
     def file_compra(self,data1:pd.DataFrame,data2:pd.DataFrame)-> pd.DataFrame:
         '''Agregar data1 el Movimiento del mes y en la variable data2 
         agregar el formato de migración WO'''
-        
+
         data1["SUBTOTAL"] = data1["Total"] - data1["IVA"]
         compras = pd.DataFrame(columns=data2.columns)
         data_rec = data1[(data1["Grupo"]=="Recibido") & (data1["Total"]!=0)] 
@@ -158,55 +160,104 @@ class Contable:
 
         except Exception as e:
             logging.error(f'Fallo la creacion del archivo de compras: {e}')
-            
 
-    def file_terceros_comp(self, data1:pd.DataFrame, data2:pd.DataFrame)-> pd.DataFrame:
-        
+    def file_terceros_comp(self, data_dian:pd.DataFrame, data_format:pd.DataFrame)-> pd.DataFrame:
+
         '''Agregar data1 el Movimiento del mes y en la variable data2 
         agregar el formato de terceros WO'''
-        try:
-            
+
+        try:                      
+
             type_adress = ['CL','CR', 'TV']
             type_letter = ['', 'A', 'B']
             type_cardinal = ['','SUR']
-                        
-            data_emi = data1[data1['NIT Emisor'] != 901365790].reset_index()
-                    
+        
+            data_emi = data_dian[data_dian['NIT Emisor'] != self.nit_company].reset_index()
+       
             list_nits = list(data_emi['NIT Emisor'].unique())
-            list_names = list(data_emi['Nombre Emisor'].unique())
-            
-            data2['No. Identificación'] = list_nits
-            data2['Tipo Identificación'] = 'NIT'
-            data2['1er. Nombre o Razón Social '] = list_names
-            data2['Ciudad Identificación'] = 'Medellín'
-            data2['Propiedad Activa'] = 'Proveedor; Cliente;'
-            data2['Activo'] = '-1'
-            data2['Propiedad Retención'] = 'Persona Juridica'
-            data2['Fecha Creación'] = self.date
-            data2['Plazo'] = 0
-            data2['Clasificación Dian'] = 'Normal'
-            data2['Tipo Dirección'] = 'Empresa/Oficina'
-            data2['Ciudad Dirección'] = 'Medellín'
-            data2['Dirección Principal'] = '-1'
-            data2['Teléfonos'] = '1234567'
-            
-            for x in range(len(data2)):
+
+            list_names = []
+
+            for id in list_nits:
+                name_id = data_emi.loc[data_emi["NIT Emisor"] == id, "Nombre Emisor"]
+                list_names.append(name_id.iloc[0])
+
+            data_format['No. Identificación'] = list_nits
+            data_format['Tipo Identificación'] = 'NIT'
+            data_format['1er. Nombre o Razón Social '] = list_names
+            data_format['Ciudad Identificación'] = 'Medellín'
+            data_format['Propiedad Activa'] = 'Proveedor; Cliente;'
+            data_format['Activo'] = '-1'
+            data_format['Propiedad Retención'] = 'Persona Juridica'
+            data_format['Fecha Creación'] = self.date
+            data_format['Plazo'] = 0
+            data_format['Clasificación Dian'] = 'Normal'
+            data_format['Tipo Dirección'] = 'Empresa/Oficina'
+            data_format['Ciudad Dirección'] = 'Medellín'
+            data_format['Dirección Principal'] = '-1'
+            data_format['Teléfonos'] = '1234567'
+
+            for x in range(len(data_format)):
                 temp_nom = choice(type_adress)
                 temp_n1 = randint(1,120)
                 temp_n2 = randint(1,120)
                 temp_card = choice(type_cardinal)
                 temp_lett = choice(type_letter)
-                data2['Dirección'][x] = temp_nom + ' ' + str(temp_n1) + ' ' + temp_lett + temp_card + ' ' + str(temp_n2)
-            
-            
-            
+                data_format['Dirección'][x] = temp_nom + ' ' + str(temp_n1) + ' ' + temp_lett + temp_card + ' ' + str(temp_n2)
+
             logging.info('Creación exitosa de los terceros de compras')
+
+            return data_format
+
+        except AttributeError as e:
+            logging.error(f'Los terceros no se puedieron procesar no hay información: {e}')
+
+    def file_terceros_vent(self, data_dian:pd.DataFrame, data_format:pd.DataFrame)-> pd.DataFrame:
+
+        '''Agregar data1 el Movimiento del mes y en la variable data2 
+        agregar el formato de terceros WO'''
+
+        try:        
+
+            type_adress = ['CL','CR', 'TV']
+            type_letter = ['', 'A', 'B']
+            type_cardinal = ['','SUR']
+         
+            data_emi = data_dian[data_dian['NIT Receptor'] != self.nit_company].reset_index()  
+            list_nits = list(data_emi['NIT Receptor'].unique())
+            list_names = []
+
+            for id in list_nits:
+                name_id = data_emi.loc[data_emi["NIT Receptor"] == id, "Nombre Receptor"]
+                list_names.append(name_id.iloc[0])
+
+            data_format['No. Identificación'] = list_nits
+            data_format['Tipo Identificación'] = 'NIT'
+            data_format['1er. Nombre o Razón Social '] = list_names
+            data_format['Ciudad Identificación'] = 'Medellín'
+            data_format['Propiedad Activa'] = 'Proveedor; Cliente;'
+            data_format['Activo'] = '-1'
+            data_format['Propiedad Retención'] = 'Persona Juridica'
+            data_format['Fecha Creación'] = self.date
+            data_format['Plazo'] = 0
+            data_format['Clasificación Dian'] = 'Normal'
+            data_format['Tipo Dirección'] = 'Empresa/Oficina'
+            data_format['Ciudad Dirección'] = 'Medellín'
+            data_format['Dirección Principal'] = '-1'
+            data_format['Teléfonos'] = '1234567'
+
+            for x in range(len(data_format)):
+                temp_nom = choice(type_adress)
+                temp_n1 = randint(1,120)
+                temp_n2 = randint(1,120)
+                temp_card = choice(type_cardinal)
+                temp_lett = choice(type_letter)
+                data_format['Dirección'][x] = temp_nom + ' ' + str(temp_n1) + ' ' + temp_lett + temp_card + ' ' + str(temp_n2)
+
+            logging.info('Creación exitosa de los terceros en ventas')
             
-            return data2
+            return data_format
             
         except AttributeError as e:
             logging.error(f'Los terceros no se puedieron procesar no hay información: {e}')
-    
-    
-        
-        
+  

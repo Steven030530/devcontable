@@ -21,23 +21,27 @@ def run() -> None:
     fact_final = os.path.abspath(os.path.join(ruta_base,'output',f'FactFinal_{company}.xlsx'))
     comp_final = os.path.abspath(os.path.join(ruta_base,'output',f'CompFinal_{company}.xlsx'))
     terc_comp_final = os.path.abspath(os.path.join(ruta_base,'output',f'Terceros_Compras_{company}.xlsx'))
+    terc_vend_final = os.path.abspath(os.path.join(ruta_base,'output',f'Terceros_Ventas_{company}.xlsx'))
     
     # Read Data
     data_dian = read_excel(mvto_conta)
     data_format = read_excel(formato)
     data_tercero = read_excel(formato_terceros)
+    data_dian2 = read_excel(mvto_conta)
+    data_tercero2 = read_excel(formato_terceros)
 
     # Transform Data
     object_tr = Contable()
     facturas_process = object_tr.file_factura(data_dian, data_format)
     compras_process = object_tr.file_compra(data_dian, data_format)
     terceros_comp_process = object_tr.file_terceros_comp(data_dian, data_tercero)
-
-    
+    terceros_vent_process = object_tr.file_terceros_vent(data_dian2, data_tercero2)
+        
     # Load Data
     load_data(facturas_process,fact_final)
     load_data(compras_process, comp_final)
     load_data(terceros_comp_process, terc_comp_final)
+    load_data(terceros_vent_process, terc_vend_final)
 
 if __name__ == '__main__':
     run()
