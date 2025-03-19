@@ -14,7 +14,7 @@ class Contable:
     def __init__(self) -> None:
         
         try:
-            self.date = input('Ingresa la fecha para procesar datos (dia/mes/año): ')            
+                     
             self.company = input('Elige una empresa para iniciar variables (IEO - JCZ): ')
             if self.company not in ['IEO', 'JCZ']:
                 raise ValueError                
@@ -33,7 +33,7 @@ class Contable:
                 self.tercero_interno = "1040741062"
                 self.cuenta_iva_generado = "24080110"
                 self.cuenta_costo = "613501"
-                self.cuenta_iva_descontable = "24080201"
+                self.cuenta_iva_descontable = "511570"
                 self.nit_company = 901365790
         except ValueError:
             logging.error('No selecciono una empresa adecuada')
@@ -51,7 +51,7 @@ class Contable:
         data_emi = data_emi[(data_emi["Tipo de documento"]=="Factura electrónica")]
         data_emi.reset_index(inplace=True)
         # Solicitamos fecha para el archivo plano
-        fecha = self.date
+        
         # Intentamos crear un archivo plano para importar al sistema
         try:
             facturas["Encab: Tercero Externo"] = data_emi["NIT Receptor"]
@@ -62,19 +62,20 @@ class Contable:
             facturas["Detalle Con: Débito"] = 0
             facturas["Detalle Con: Crédito"] = data_emi["SUBTOTAL"]
             facturas["Encab: Empresa"] = self.name_company
-            facturas["Encab: Fecha"] = fecha
+            facturas["Encab: Fecha"] = data_emi["Fecha Emisión"]
             facturas["Encab: Tercero Interno"] = self.tercero_interno
             facturas["Encab: Documento Número"] = data_emi["Folio"]
             facturas["Encab: Nota"] = data_emi["Folio"]
             facturas["Encab: Verificado"] = 0
             facturas["Encab: Anulado"] = 0
+            
             # Agregamos el IVA a cada uno de los registros
             for i in range(len(facturas["Encab: Documento Número"])):
-                iva = [self.name_company,"NC","",data_emi["Folio"][i],fecha,
+                iva = [self.name_company,"NC","",data_emi["Folio"][i],data_emi["Fecha Emisión"][i],
                     self.tercero_interno,data_emi["NIT Receptor"][i],
                     "Factura de Venta " + str(data_emi["Folio"][i]),0,0,"","","","","",
                     "","","","","","","","","","","","",self.cuenta_iva_generado,"Factura de Venta",
-                    data_emi["NIT Receptor"][i],"",0,(data_emi["SUBTOTAL"][i]) * 0.19,
+                    data_emi["NIT Receptor"][i],"",0,data_emi["IVA"][i],
                     "","","","","","","","","","","","","","",""]
 
                 facturas.loc[len(facturas.index)] = iva
@@ -84,7 +85,7 @@ class Contable:
             # Agregamos la cuenta por cobrar a los clientes
             for i in document:
                 cc_cod = facturas.loc[facturas["Encab: Documento Número"] == i].reset_index()
-                cxc = [self.name_company,"NC","",i,fecha,
+                cxc = [self.name_company,"NC","",i,cc_cod["Encab: Fecha"][0],
                     self.tercero_interno,cc_cod["Encab: Tercero Externo"][0],
                     "Factura de Venta " + str(i),0,0,"","","","","",
                     "","","","","","","","","","","","","13050501","Factura de Venta",
@@ -94,6 +95,9 @@ class Contable:
             facturas = facturas.sort_values("Encab: Documento Número",ignore_index=True)
             # Creamos un consecutivo en el prefijo para que la importacion no arroje inconsistencias
             facturas["Encab: Prefijo"] = [i+1 for i in range(len(facturas["Encab: Tipo Documento"]))]
+            facturas["Encab: Fecha"] = pd.to_datetime(facturas["Encab: Fecha"], format='%d-%m-%Y',errors='coerce')
+            facturas["Encab: Fecha"] = facturas["Encab: Fecha"].dt.strftime('%d/%m/%Y')
+ 
             logging.info("Los datos fueron transformados exitosamente")
 
             return facturas
@@ -110,8 +114,7 @@ class Contable:
         data_rec = data1[(data1["Grupo"]=="Recibido") & (data1["Total"]!=0)] 
         data_rec = data_rec.reset_index()
         data_rec["%IVA"] = data_rec["IVA"] / data_rec["SUBTOTAL"]
-        # Solicitamos fecha para el archivo plano
-        fecha = self.date
+        
         # Intentamos crear un archivo plano para importar al sistema
         try:
             compras["Encab: Tercero Externo"] = data_rec["NIT Emisor"]
@@ -122,20 +125,20 @@ class Contable:
             compras["Detalle Con: Débito"] = data_rec["SUBTOTAL"]
             compras["Detalle Con: Crédito"] = 0
             compras["Encab: Empresa"] = self.name_company
-            compras["Encab: Fecha"] = fecha
+            compras["Encab: Fecha"] = data_rec["Fecha Emisión"]
             compras["Encab: Tercero Interno"] = self.tercero_interno
-            compras["Encab: Documento Número"] = 1000 + data_rec["Folio"]
+            compras["Encab: Documento Número"] = data_rec["Folio"]
             compras["Encab: Nota"] = data_rec["Folio"]
             compras["Encab: Verificado"] = 0
             compras["Encab: Anulado"] = 0
             # Agregamos el IVA a cada uno de los registros
             for i in range(len(compras["Encab: Documento Número"])):
                 if data_rec["%IVA"][i] > 0 :
-                    iva = [self.name_company,"NC","", data_rec["Folio"][i],fecha,
+                    iva = [self.name_company,"NC","", data_rec["Folio"][i],data_rec["Fecha Emisión"][i],
                         self.tercero_interno,data_rec["NIT Emisor"][i],
                         "Factura de Compra " + str(data_rec["Folio"][i]),0,0,"","","","","",
                         "","","","","","","","","","","","",self.cuenta_iva_descontable,"Factura de Compra",
-                        data_rec["NIT Emisor"][i],"",(data_rec["SUBTOTAL"][i]) * 0.19,0,
+                        data_rec["NIT Emisor"][i],"",data_rec["IVA"][i],0,
                         "","","","","","","","","","","","","","",""]
                     compras.loc[len(compras.index)] = iva
 
@@ -144,7 +147,7 @@ class Contable:
             # Agregamos el banco a cada uno de los registros de compra
             for i in document:
                 bc_cod = compras.loc[compras["Encab: Documento Número"] == i].reset_index()
-                banco = [self.name_company,"NC","",i,fecha,
+                banco = [self.name_company,"NC","",i,bc_cod["Encab: Fecha"][0],
                     self.tercero_interno,bc_cod["Encab: Tercero Externo"][0],
                     "Factura de Compra " + str(i),0,0,"","","","","",
                     "","","","","","","","","","","","","11100501","Facturas de Compra",
@@ -154,6 +157,8 @@ class Contable:
             compras = compras.sort_values("Encab: Documento Número",ignore_index=True)
             # Creamos un consecutivo en el prefijo para que la importacion no arroje inconsistencias
             compras["Encab: Prefijo"] = [i+1 for i in range(len(compras["Encab: Tipo Documento"]))]
+            compras["Encab: Fecha"] = pd.to_datetime(compras["Encab: Fecha"], format='%d-%m-%Y',errors='coerce')
+            compras["Encab: Fecha"] = compras["Encab: Fecha"].dt.strftime('%d/%m/%Y')
             logging.info("Los datos fueron transformados exitosamente")
 
             return compras
@@ -189,7 +194,7 @@ class Contable:
             data_format['Propiedad Activa'] = 'Proveedor; Cliente;'
             data_format['Activo'] = '-1'
             data_format['Propiedad Retención'] = 'Persona Juridica'
-            data_format['Fecha Creación'] = self.date
+            data_format['Fecha Creación'] = data_emi["Fecha Emisión"]
             data_format['Plazo'] = 0
             data_format['Clasificación Dian'] = 'Normal'
             data_format['Tipo Dirección'] = 'Empresa/Oficina'
@@ -197,6 +202,9 @@ class Contable:
             data_format['Dirección Principal'] = '-1'
             data_format['Teléfonos'] = '1234567'
 
+            data_format['Fecha Creación'] = pd.to_datetime(data_format['Fecha Creación'], format='%d-%m-%Y',errors='coerce')
+            data_format['Fecha Creación'] = data_format['Fecha Creación'].dt.strftime('%d/%m/%Y')
+            
             for x in range(len(data_format)):
                 temp_nom = choice(type_adress)
                 temp_n1 = randint(1,120)
@@ -238,13 +246,15 @@ class Contable:
             data_format['Propiedad Activa'] = 'Proveedor; Cliente;'
             data_format['Activo'] = '-1'
             data_format['Propiedad Retención'] = 'Persona Juridica'
-            data_format['Fecha Creación'] = self.date
+            data_format['Fecha Creación'] = data_emi["Fecha Emisión"]
             data_format['Plazo'] = 0
             data_format['Clasificación Dian'] = 'Normal'
             data_format['Tipo Dirección'] = 'Empresa/Oficina'
             data_format['Ciudad Dirección'] = 'Medellín'
             data_format['Dirección Principal'] = '-1'
             data_format['Teléfonos'] = '1234567'
+            data_format['Fecha Creación'] = pd.to_datetime(data_format['Fecha Creación'], format='%d-%m-%Y',errors='coerce')
+            data_format['Fecha Creación'] = data_format['Fecha Creación'].dt.strftime('%d/%m/%Y')
 
             for x in range(len(data_format)):
                 temp_nom = choice(type_adress)
